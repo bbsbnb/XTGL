@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工程项目证据链管理系统</title>
+<style>
+/* ===== 全局 ===== */
+:root {
+  --bg: #0f1117;
+  --bg2: #161822;
+  --bg3: #1e2030;
+  --bg4: #252840;
+  --border: #2a2d45;
+  --text: #e2e4f0;
+  --text2: #8b8fa8;
+  --accent: #5b8def;
+  --accent2: #7aa2f7;
+  --green: #41b883;
+  --yellow: #e9c46a;
+  --red: #e74c5e;
+  --orange: #f5a623;
+  --radius: 8px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text2); }
+
+/* ===== 布局 ===== */
+.app { display: flex; height: 100vh; }
+
+/* ===== 侧边栏 ===== */
+.sidebar {
+  width: 260px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent2);
+}
+.sidebar-header p {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+.sidebar-nav {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 13px;
+  color: var(--text2);
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+}
+.nav-item:hover { background: var(--bg3); color: var(--text); }
+.nav-item.active { background: var(--bg4); color: var(--accent2); }
+.nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-item .badge {
+  margin-left: auto;
+  background: var(--bg4);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text2);
+  text-align: center;
+}
+
+/* ===== 主内容 ===== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.main-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.page-title { font-size: 18px; font-weight: 600; }
+.page-subtitle { font-size: 12px; color: var(--text2); margin-top: 2px; }
+.header-actions { display: flex; gap: 10px; align-items: center; }
+
+.main-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+/* ===== 按钮 ===== */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg4); border-color: var(--accent); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent2); }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-danger { border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: var(--red); color: #fff; }
+.btn-success { border-color: var(--green); color: var(--green); }
+.btn-success:hover { background: var(--green); color: #fff; }
+
+/* ===== 搜索 ===== */
+.search-box {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.search-box input, .filter-select {
+  padding: 7px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+  min-width: 160px;
+}
+.search-box input:focus, .filter-select:focus {
+  border-color: var(--accent);
+}
+.filter-select { min-width: 120px; cursor: pointer; }
+
+/* ===== 统计卡片 ===== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.stat-card .label { font-size: 12px; color: var(--text2); }
+.stat-card .value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+.stat-card .sub { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.stat-blue .value { color: var(--accent2); }
+.stat-green .value { color: var(--green); }
+.stat-yellow .value { color: var(--yellow); }
+.stat-red .value { color: var(--red); }
+
+/* ===== 面板 ===== */
+.panel {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ===== 表格 ===== */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+  font-weight: 500;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+tr:hover td { background: var(--bg4); }
+tr:last-child td { border-bottom: none; }
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.status-已签认 { background: rgba(65,184,131,0.15); color: var(--green); }
+.status-待确认 { background: rgba(233,196,106,0.15); color: var(--yellow); }
+.status-已否决 { background: rgba(231,76,94,0.15); color: var(--red); }
+.status-自行归档 { background: rgba(139,143,168,0.15); color: var(--text2); }
+
+.code-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg4);
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--accent2);
+}
+.actions-cell {
+  display: flex;
+  gap: 4px;
+}
+
+/* ===== 项目列表 ===== */
+.project-list { padding: 8px; }
+.project-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: 0.1s;
+}
+.project-item:hover { background: var(--bg4); }
+.project-item .name { flex:1; font-size:13px; }
+.project-item .count { font-size:12px; color:var(--text2); }
+.project-item .bar {
+  width: 80px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.project-item .bar-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+/* ===== 模态框 ===== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 540px;
+  max-width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+}
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-header h2 { font-size: 16px; font-weight: 600; }
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 20px; }
+.modal-footer {
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ===== 表单 ===== */
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 12px;
+  color: var(--text2);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.form-group input, .form-group select, .form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: var(--accent);
+}
+.form-group textarea { resize: vertical; min-height: 60px; }
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ===== 空状态 ===== */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text2);
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+.empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--text); }
+.empty-state p { font-size: 13px; }
+
+/* ===== 加载 ===== */
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text2);
+}
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin: 0 auto 8px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== 提示 ===== */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  padding: 12px 20px;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 13px;
+  z-index: 2000;
+  transform: translateY(100px);
+  opacity: 0;
+  transition: all 0.3s;
+  max-width: 400px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-success { background: var(--green); }
+.toast-error { background: var(--red); }
+.toast-info { background: var(--accent); }
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  .sidebar { display: none; }
+  .main-header { flex-direction: column; align-items: flex-start; }
+  .header-actions { width: 100%; }
+  .search-box { width: 100%; }
+  .search-box input { flex: 1; }
+  .form-row { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>🏗️ 证据链管理</h1>
+      <p>工程项目结算证据链系统</p>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="nav-item active" onclick="switchTab('dashboard')">
+        <span class="icon">📊</span> 仪表盘
+      </button>
+      <button class="nav-item" onclick="switchTab('evidence')">
+        <span class="icon">📋</span> 证据列表
+        <span class="badge" id="totalBadge">0</span>
+      </button>
+      <button class="nav-item" onclick="switchTab('projects')">
+        <span class="icon">📁</span> 项目管理
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      工程项目证据链管理系统 v2.0
+    </div>
+  </aside>
+
+  <!-- 主内容 -->
+  <main class="main">
+    <!-- 顶部栏 -->
+    <header class="main-header">
+      <div>
+        <div class="page-title" id="pageTitle">仪表盘</div>
+        <div class="page-subtitle" id="pageSubtitle">系统总览与关键指标</div>
+      </div>
+      <div class="header-actions">
+        <div class="search-box">
+          <input type="text" id="globalSearch" placeholder="搜索项目/简述/类别..." onkeydown="if(event.key==='Enter')handleGlobalSearch()">
+          <button class="btn btn-sm" onclick="handleGlobalSearch()">🔍</button>
+        </div>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 新增记录</button>
+        <button class="btn btn-sm" onclick="exportCSV()">📥 导出</button>
+      </div>
+    </header>
+
+    <!-- 页面内容 -->
+    <div class="main-body" id="mainBody">
+      <!-- 由 JS 动态渲染 -->
+    </div>
+  </main>
+</div>
+
+<!-- 模态框 -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">新增证据记录</h2>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="form-row">
+        <div class="form-group">
+          <label>项目名称 *</label>
+          <input type="text" id="fProject" list="projectList" placeholder="如: 某某大厦项目-2025-001">
+          <datalist id="projectList"></datalist>
+        </div>
+        <div class="form-group">
+          <label>文件日期 *</label>
+          <input type="date" id="fDate">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>类别代码 *</label>
+          <select id="fCode"></select>
+        </div>
+        <div class="form-group">
+          <label>签认状态</label>
+          <select id="fStatus">
+            <option value="已签认">✅ 已签认</option>
+            <option value="待确认" selected>⏳ 待确认</option>
+            <option value="已否决">❌ 已否决</option>
+            <option value="自行归档">📄 自行归档</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>文件简述 *</label>
+        <input type="text" id="fDesc" placeholder="如: 主体结构二层梁板钢筋绑扎签证">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>版本号</label>
+          <input type="text" id="fVersion" placeholder="v1.0" value="v1.0">
+        </div>
+        <div class="form-group">
+          <label>文件名（可选）</label>
+          <input type="text" id="fFilename" placeholder="按命名规则的文件名">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>存放路径（可选）</label>
+        <input type="text" id="fPath" placeholder="03-施工过程/材料进场验收/">
+      </div>
+      <div class="form-group">
+        <label>备注</label>
+        <textarea id="fNotes" placeholder="补充说明..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 通知 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// 状态
+// ============================================================
+let state = {
+  currentTab: 'dashboard',
+  evidence: [],
+  projects: [],
+  categories: [],
+  stats: null,
+  total: 0,
+  page: 1,
+  pageSize: 50,
+  filters: { project: '', status: '', category: '', search: '' },
+};
+
+// ============================================================
+// API 工具
+// ============================================================
+const API = {
+  async get(url) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async post(url, data) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async put(url, data) {
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+  async del(url) {
+    const res = await fetch(url, { method: 'DELETE' });
+    if (!res.ok) throw new Error(await res.text());
+    return res.json();
+  },
+};
+
+// ============================================================
+// 通知
+// ============================================================
+function toast(msg, type = 'info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast toast-${type} show`;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ============================================================
+// 页面切换
+// ============================================================
+function switchTab(tab) {
+  state.currentTab = tab;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const btns = { dashboard: 0, evidence: 1, projects: 2 };
+  document.querySelectorAll('.nav-item')[btns[tab]]?.classList.add('active');
+  
+  const titles = {
+    dashboard: ['📊 仪表盘', '系统总览与关键指标'],
+    evidence: ['📋 证据列表', '所有证据记录，支持搜索与筛选'],
+    projects: ['📁 项目管理', '各项目概况与完成度'],
+  };
+  document.getElementById('pageTitle').textContent = titles[tab][0];
+  document.getElementById('pageSubtitle').textContent = titles[tab][1];
+  
+  render();
+}
+
+// ============================================================
+// 全局搜索
+// ============================================================
+function handleGlobalSearch() {
+  const q = document.getElementById('globalSearch').value.trim();
+  state.filters.search = q;
+  switchTab('evidence');
+  loadEvidence();
+}
+
+// ============================================================
+// 数据加载
+// ============================================================
+async function loadDashboard() {
+  try {
+    state.stats = await API.get('/api/stats');
+    state.projects = await API.get('/api/projects');
+    renderDashboard();
+  } catch (e) {
+    document.getElementById('mainBody').innerHTML = `<div class="empty-state"><p>⚠️ 加载失败: ${e.message}</p></div>`;
+  }
+}
+
+async function loadEvidence() {
+  try {
+    const params = new URLSearchParams();
+    if (state.filters.project) params.set('project', state.filters.project);
+    if (state.filters.status) params.set('status', state.filters.status);
+    if (state.filters.category) params.set('category', state.filters.category);
+    if (state.filters.search) params.set('search', state.filters.search);
+    params.set('page', state.page);
+    params.set('page_size', state.pageSize);
+    
+    const result = await API.get(`/api/evidence?${params.toString()}`);
+    state.evidence = result.data;
+    state.total = result.total;
+    document.getElementById('totalBadge').textContent = state.total;
+    renderEvidence();
+  } catch (e) {
+    document.getElementById('mainBody').innerHTML = `<div class="empty-state"><p>⚠️ 加载失败: ${e.message}</p></div>`;
+  }
+}
+
+async function loadProjects() {
+  try {
+    state.projects = await API.get('/api/projects');
+    renderProjects();
+  } catch (e) {
+    document.getElementById('mainBody').innerHTML = `<div class="empty-state"><p>⚠️ 加载失败: ${e.message}</p></div>`;
+  }
+}
+
+async function loadCategories() {
+  state.categories = await API.get('/api/categories');
+  const sel = document.getElementById('fCode');
+  sel.innerHTML = '<option value="">-- 请选择 --</option>';
+  state.categories.forEach(c => {
+    sel.innerHTML += `<option value="${c.code}">${c.code} - ${c.name}</option>`;
+  });
+}
+
+async function loadProjectList() {
+  try {
+    const projects = await API.get('/api/projects');
+    const dl = document.getElementById('projectList');
+    dl.innerHTML = projects.map(p => `<option value="${p.project_name}">`).join('');
+  } catch(e) {}
+}
+
+// ============================================================
+// 渲染：仪表盘
+// ============================================================
+function renderDashboard() {
+  const s = state.stats;
+  if (!s) return;
+  
+  const statusCounts = {};
+  s.by_status.forEach(x => statusCounts[x.status] = x.cnt);
+  
+  let html = `
+  <div class="stats-grid">
+    <div class="stat-card stat-blue">
+      <div class="label">总证据数</div>
+      <div class="value">${s.total}</div>
+      <div class="sub">全部项目合计</div>
+    </div>
+    <div class="stat-card stat-green">
+      <div class="label">已签认</div>
+      <div class="value">${statusCounts['已签认'] || 0}</div>
+      <div class="sub">${s.total > 0 ? Math.round((statusCounts['已签认']||0)/s.total*100) : 0}% 完成率</div>
+    </div>
+    <div class="stat-card stat-yellow">
+      <div class="label">待确认</div>
+      <div class="value">${statusCounts['待确认'] || 0}</div>
+      <div class="sub">需要跟进的记录</div>
+    </div>
+    <div class="stat-card stat-red">
+      <div class="label">已否决</div>
+      <div class="value">${statusCounts['已否决'] || 0}</div>
+      <div class="sub">结算风险项</div>
+    </div>
+  </div>`;
+  
+  // 最近记录
+  html += `<div class="panel">
+    <div class="panel-header">
+      <span>📋 最近添加的记录</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>日期</th><th>项目</th><th>类别</th><th>简述</th><th>状态</th>
+        </tr></thead>
+        <tbody>`;
+  
+  if (s.recent && s.recent.length > 0) {
+    s.recent.forEach(r => {
+      html += `<tr>
+        <td>${r.file_date}</td>
+        <td>${escHtml(r.project_name)}</td>
+        <td><span class="code-tag">${r.category_code}</span></td>
+        <td>${escHtml(r.description)}</td>
+        <td><span class="status-badge status-${r.status}">${r.status}</span></td>
+      </tr>`;
+    });
+  } else {
+    html += `<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:24px;">暂无记录，点击右上角「＋ 新增记录」开始</td></tr>`;
+  }
+  
+  html += `</tbody></table></div></div>`;
+  
+  // 按类别统计
+  html += `<div class="panel">
+    <div class="panel-header">
+      <span>📂 按类别分布</span>
+    </div>
+    <div style="padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">`;
+  
+  s.by_category.forEach(c => {
+    const pct = s.total > 0 ? Math.round(c.cnt / s.total * 100) : 0;
+    html += `<div style="background:var(--bg4);border-radius:6px;padding:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+        <span><span class="code-tag">${c.category_code}</span> ${c.category_name}</span>
+        <span style="color:var(--text2)">${c.cnt}</span>
+      </div>
+      <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:2px;"></div>
+      </div>
+    </div>`;
+  });
+  
+  html += `</div></div>`;
+  
+  // 月度趋势
+  if (s.by_month && s.by_month.length > 0) {
+    const maxM = Math.max(...s.by_month.map(m => m.cnt));
+    html += `<div class="panel">
+      <div class="panel-header"><span>📅 月度趋势（最近12个月）</span></div>
+      <div style="padding:16px;display:flex;gap:6px;align-items:flex-end;min-height:120px;">`;
+    [...s.by_month].reverse().forEach(m => {
+      const h = maxM > 0 ? (m.cnt / maxM * 80) : 0;
+      html += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <span style="font-size:11px;color:var(--text2)">${m.cnt}</span>
+        <div style="width:100%;height:${Math.max(8, h)}px;background:var(--accent);border-radius:3px;"></div>
+        <span style="font-size:10px;color:var(--text2)">${m.month}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+  
+  // 项目总览
+  html += `<div class="panel">
+    <div class="panel-header"><span>📁 项目总览</span></div>
+    <div class="project-list">`;
+  
+  if (state.projects.length > 0) {
+    state.projects.forEach(p => {
+      const pct = p.total > 0 ? Math.round(p.signed / p.total * 100) : 0;
+      html += `<div class="project-item" onclick="switchTab('evidence');state.filters.project='${escHtml(p.project_name)}';loadEvidence()">
+        <div class="name">${escHtml(p.project_name)}</div>
+        <div class="count">共 ${p.total} 份</div>
+        <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <span style="font-size:12px;color:${pct >= 80 ? 'var(--green)' : 'var(--yellow)'}">${pct}%</span>
+        <span style="font-size:11px;color:var(--text2)">✅${p.signed} ⏳${p.pending}</span>
+      </div>`;
+    });
+  } else {
+    html += `<div style="padding:20px;text-align:center;color:var(--text2);">暂无项目数据</div>`;
+  }
+  
+  html += `</div></div>`;
+  
+  document.getElementById('mainBody').innerHTML = html;
+}
+
+// ============================================================
+// 渲染：证据列表
+// ============================================================
+function renderEvidence() {
+  const f = state.filters;
+  let html = `
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+    <select class="filter-select" id="filterProject" onchange="state.filters.project=this.value;state.page=1;loadEvidence()">
+      <option value="">全部项目</option>
+      ${state.projects.map(p => `<option value="${escHtml(p.project_name)}" ${f.project === p.project_name ? 'selected' : ''}>${escHtml(p.project_name)}</option>`).join('')}
+    </select>
+    <select class="filter-select" id="filterStatus" onchange="state.filters.status=this.value;state.page=1;loadEvidence()">
+      <option value="">全部状态</option>
+      <option value="已签认" ${f.status==='已签认'?'selected':''}>✅ 已签认</option>
+      <option value="待确认" ${f.status==='待确认'?'selected':''}>⏳ 待确认</option>
+      <option value="已否决" ${f.status==='已否决'?'selected':''}>❌ 已否决</option>
+      <option value="自行归档" ${f.status==='自行归档'?'selected':''}>📄 自行归档</option>
+    </select>
+    <select class="filter-select" id="filterCategory" onchange="state.filters.category=this.value;state.page=1;loadEvidence()">
+      <option value="">全部类别</option>
+      ${state.categories.map(c => `<option value="${c.code}" ${f.category===c.code?'selected':''}>${c.code} ${c.name}</option>`).join('')}
+    </select>
+    <span style="font-size:12px;color:var(--text2);margin-left:auto;">共 ${state.total} 条记录</span>
+  </div>`;
+  
+  html += `<div class="panel"><div class="table-wrap"><table>
+    <thead><tr>
+      <th>日期</th><th>项目</th><th>类别</th><th>简述</th><th>版本</th><th>状态</th><th>操作</th>
+    </tr></thead><tbody>`;
+  
+  if (state.evidence.length > 0) {
+    state.evidence.forEach(r => {
+      html += `<tr>
+        <td>${r.file_date}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(r.project_name)}">${escHtml(r.project_name)}</td>
+        <td><span class="code-tag">${r.category_code}</span></td>
+        <td style="max-width:240px;overflow:hidden;text-overflow:ellipsis;" title="${escHtml(r.description)}">${escHtml(r.description)}</td>
+        <td>${r.version}</td>
+        <td><span class="status-badge status-${r.status}">${r.status}</span></td>
+        <td class="actions-cell">
+          <button class="btn btn-sm" onclick="viewRecord(${r.id})" title="查看详情">👁</button>
+          <button class="btn btn-sm" onclick="editRecord(${r.id})" title="编辑">✏️</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteRecord(${r.id})" title="删除">🗑</button>
+        </td>
+      </tr>`;
+    });
+  } else {
+    html += `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text2);">
+      <div style="font-size:36px;margin-bottom:8px;">📭</div>
+      <div>暂无匹配记录</div>
+      <div style="font-size:12px;margin-top:4px;">点击右上角「＋ 新增记录」开始添加</div>
+    </td></tr>`;
+  }
+  
+  html += `</tbody></table></div></div>`;
+  
+  document.getElementById('mainBody').innerHTML = html;
+}
+
+// ============================================================
+// 渲染：项目管理
+// ============================================================
+function renderProjects() {
+  let html = `<div class="panel">
+    <div class="panel-header"><span>📁 项目总览</span></div>
+    <div class="project-list">`;
+  
+  if (state.projects.length > 0) {
+    state.projects.forEach(p => {
+      const pct = p.total > 0 ? Math.round(p.signed / p.total * 100) : 0;
+      const barClass = pct >= 80 ? 'var(--green)' : pct >= 50 ? 'var(--yellow)' : 'var(--red)';
+      html += `<div style="padding:14px 16px;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:600;">${escHtml(p.project_name)}</div>
+            <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:var(--text2);">
+              <span>📄 共 ${p.total} 份</span>
+              <span style="color:var(--green)">✅ 已签认 ${p.signed}</span>
+              <span style="color:var(--yellow)">⏳ 待确认 ${p.pending}</span>
+              ${p.rejected > 0 ? `<span style="color:var(--red)">❌ 已否决 ${p.rejected}</span>` : ''}
+            </div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:20px;font-weight:700;color:${barClass};">${pct}%</div>
+            <div style="font-size:11px;color:var(--text2);">完成率</div>
+          </div>
+        </div>
+        <div style="margin-top:8px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${barClass};border-radius:3px;transition:width 0.5s;"></div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button class="btn btn-sm" onclick="state.filters.project='${escHtml(p.project_name)}';switchTab('evidence');loadEvidence()">📋 查看证据</button>
+          <button class="btn btn-sm btn-success" onclick="exportCSV('${escHtml(p.project_name)}')">📥 导出清单</button>
+        </div>
+      </div>`;
+    });
+  } else {
+    html += `<div class="empty-state">
+      <div class="icon">📭</div>
+      <h3>暂无项目</h3>
+      <p>点击右上角「＋ 新增记录」开始添加第一条证据</p>
+    </div>`;
+  }
+  
+  html += `</div></div>`;
+  
+  document.getElementById('mainBody').innerHTML = html;
+}
+
+// ============================================================
+// 模态框
+// ============================================================
+function openAddModal() {
+  document.getElementById('editId').value = '';
+  document.getElementById('modalTitle').textContent = '＋ 新增证据记录';
+  document.getElementById('fDate').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('fProject').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fVersion').value = 'v1.0';
+  document.getElementById('fFilename').value = '';
+  document.getElementById('fPath').value = '';
+  document.getElementById('fNotes').value = '';
+  document.getElementById('fStatus').value = '待确认';
+  document.getElementById('fCode').selectedIndex = 0;
+  document.getElementById('modalOverlay').classList.add('show');
+  loadProjectList();
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+async function saveRecord() {
+  const id = document.getElementById('editId').value;
+  const data = {
+    project_name: document.getElementById('fProject').value.trim(),
+    file_date: document.getElementById('fDate').value,
+    category_code: document.getElementById('fCode').value,
+    description: document.getElementById('fDesc').value.trim(),
+    version: document.getElementById('fVersion').value.trim(),
+    status: document.getElementById('fStatus').value,
+    file_path: document.getElementById('fPath').value.trim(),
+    filename: document.getElementById('fFilename').value.trim(),
+    notes: document.getElementById('fNotes').value.trim(),
+  };
+  
+  if (!data.project_name || !data.file_date || !data.category_code || !data.description) {
+    toast('请填写必填字段（项目名称、日期、类别、简述）', 'error');
+    return;
+  }
+  
+  try {
+    if (id) {
+      await API.put(`/api/evidence/${id}`, data);
+      toast('✅ 记录已更新', 'success');
+    } else {
+      await API.post('/api/evidence', data);
+      toast('✅ 记录已添加', 'success');
+    }
+    closeModal();
+    refreshCurrentTab();
+  } catch(e) {
+    toast('❌ 保存失败: ' + e.message, 'error');
+  }
+}
+
+async function editRecord(id) {
+  try {
+    const r = await API.get(`/api/evidence/${id}`);
+    document.getElementById('editId').value = id;
+    document.getElementById('modalTitle').textContent = '✏️ 编辑证据记录';
+    document.getElementById('fProject').value = r.project_name;
+    document.getElementById('fDate').value = r.file_date;
+    document.getElementById('fCode').value = r.category_code;
+    document.getElementById('fDesc').value = r.description;
+    document.getElementById('fVersion').value = r.version;
+    document.getElementById('fStatus').value = r.status;
+    document.getElementById('fPath').value = r.file_path || '';
+    document.getElementById('fFilename').value = r.filename || '';
+    document.getElementById('fNotes').value = r.notes || '';
+    document.getElementById('modalOverlay').classList.add('show');
+    loadProjectList();
+  } catch(e) {
+    toast('❌ 加载失败: ' + e.message, 'error');
+  }
+}
+
+async function viewRecord(id) {
+  try {
+    const r = await API.get(`/api/evidence/${id}`);
+    toast(`📄 ${r.description} | ${r.category_code} | ${r.status} | ${r.version} | ${r.file_date}`, 'info');
+  } catch(e) {}
+}
+
+async function deleteRecord(id) {
+  if (!confirm('确认删除这条记录？')) return;
+  try {
+    await API.del(`/api/evidence/${id}`);
+    toast('🗑️ 记录已删除', 'success');
+    refreshCurrentTab();
+  } catch(e) {
+    toast('❌ 删除失败: ' + e.message, 'error');
+  }
+}
+
+// ============================================================
+// 导出
+// ============================================================
+function exportCSV(project) {
+  const params = new URLSearchParams();
+  if (project) params.set('project', project);
+  window.open(`/api/export?${params.toString()}`, '_blank');
+  toast('📥 正在下载...', 'info');
+}
+
+// ============================================================
+// 工具
+// ============================================================
+function escHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+function refreshCurrentTab() {
+  switch (state.currentTab) {
+    case 'dashboard': loadDashboard(); break;
+    case 'evidence': loadEvidence(); break;
+    case 'projects': loadProjects(); break;
+  }
+}
+
+// ============================================================
+// 主渲染
+// ============================================================
+function render() {
+  const body = document.getElementById('mainBody');
+  body.innerHTML = `<div class="loading"><div class="spinner"></div><p>加载中...</p></div>`;
+  
+  switch (state.currentTab) {
+    case 'dashboard':
+      loadDashboard();
+      break;
+    case 'evidence':
+      loadCategories().then(loadEvidence);
+      break;
+    case 'projects':
+      loadProjects();
+      break;
+  }
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  await API.post('/api/init');
+  loadCategories();
+  loadProjectList();
+  loadDashboard();
+});
+
+// 点击遮罩关闭模态
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+
+// 键盘快捷键
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+});
+</script>
+</body>
+</html>
