@@ -51,3 +51,9 @@ export const removeSettlementPackageItem = (pid, iid) => api.delete("/settlement
 export const exportSettlementPackage = (pid) => api.get("/settlement-packages/" + pid + "/export", { responseType: "blob" });
 export const globalSearch = (params) => api.get("/search", { params });
 export const batchUploadEvidence = (formData) => api.post('/evidence/batch-upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const getSettings = () => api.get("/settings");
+export const updateSettings = (d) => api.put("/settings", d);
+export const getEvidenceLinks = (eid) => api.get("/evidence/" + eid + "/links");
+export const addEvidenceLink = (eid, d) => api.post("/evidence/" + eid + "/links", d);
+export const removeEvidenceLink = (eid, lid) => api.delete("/evidence/" + eid + "/links/" + lid);
+export const suggestLinks = (eid) => api.get("/evidence/" + eid + "/suggest-links");

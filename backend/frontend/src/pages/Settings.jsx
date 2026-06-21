@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Tabs, Card, Table, Button, Modal, Form, Input, InputNumber, Select, message, Tag, Space, Typography } from "antd";
-import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
-import { getProjects, createProject, updateProject, deleteProject, getUsers, createUser, updateUser, deleteUser, getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, getCategories } from "../api";
+import { PlusOutlined, EditOutlined, DeleteOutlined, KeyOutlined } from "@ant-design/icons";
+import { getProjects, createProject, updateProject, deleteProject, getUsers, createUser, updateUser, deleteUser, getAlertRules, createAlertRule, updateAlertRule, deleteAlertRule, getCategories, getSettings, updateSettings } from "../api";
 
 function ProjectSettings() {
   const [data, setData] = useState([]);
@@ -167,7 +167,78 @@ function AlertRuleSettings() {
   </div>);
 }
 
-export default function Settings() {
+export default 
+function LLMSettings() {
+  const L = {
+    desc: '配置 AI 接口，用于智能填充表单和自动推荐证据关联。',
+    provider: '快速选择提供商',
+    enterKey: '输入你的 API 密钥',
+    save: '保存配置',
+    test: '测试连接',
+    status: '查看配置状态',
+  };
+  const [settings, setSettings] = useState({ llm_api_key: "", llm_model: "gpt-4o-mini", llm_endpoint: "https://api.openai.com/v1" });
+  const [form] = Form.useForm();
+  const [testLoading, setTestLoading] = useState(false);
+  const load = () => { getSettings().then(r => { if (r.data.settings) { setSettings(r.data.settings); form.setFieldsValue(r.data.settings); } }); };
+  useEffect(() => { load(); }, []);
+  const handlePreset = (key) => {
+    const presets = {
+      openai: { label: "OpenAI", endpoint: "https://api.openai.com/v1", model: "gpt-4o-mini" },
+      qwen: { label: "通义千问 (Alibaba)", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
+      deepseek: { label: "DeepSeek", endpoint: "https://api.deepseek.com/v1", model: "deepseek-chat" },
+      glm: { label: "智谱清言 (GLM)", endpoint: "https://open.bigmodel.cn/api/paas/v4", model: "glm-4-flash" },
+      kimi: { label: "月之暗面 (Kimi)", endpoint: "https://api.moonshot.cn/v1", model: "moonshot-v1-8k" },
+      baidu: { label: "百度千帆", endpoint: "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat", model: "ernie-speed-8k" },
+    };
+    if (presets[key]) form.setFieldsValue({ llm_endpoint: presets[key].endpoint, llm_model: presets[key].model });
+  };
+  const handleSave = async () => {
+    const v = form.getFieldsValue();
+    try { await updateSettings(v); message.success(L.save); setSettings(v); } catch (e) { message.error(e.response?.data?.error || "保存失败"); }
+  };
+  const handleTest = async () => {
+    const v = form.getFieldsValue();
+    if (!v.llm_api_key) { message.warning("请先输入 API Key"); return; }
+    setTestLoading(true);
+    try {
+      const res = await fetch("/api/settings/test-llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ api_key: v.llm_api_key, model: v.llm_model, endpoint: v.llm_endpoint }), credentials: "include" });
+      const data = await res.json();
+      if (data.ok) message.success(data.message || "连接成功");
+      else message.error(data.error || "测试失败");
+    } catch (e) { message.error("测试失败: " + (e.message || "")); }
+    setTestLoading(false);
+  };
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <Typography.Text type="secondary" style={{ display: "block", marginBottom: 16 }}>{L.desc}</Typography.Text>
+      <Form form={form} layout="vertical" initialValues={settings} onFinish={handleSave}>
+        <Form.Item label={L.provider}>
+          <Select placeholder="选择提供商..." onChange={handlePreset}>
+            {Object.entries({ openai: "OpenAI", qwen: "通义千问", deepseek: "DeepSeek", glm: "智谱", kimi: "Kimi", baidu: "百度" }).map(([k, v]) => 
+              <Select.Option key={k} value={k}>{v}</Select.Option>
+            )}
+          </Select>
+        </Form.Item>
+        <Form.Item name="llm_api_key" label="API Key">
+          <Input.Password placeholder={L.enterKey} prefix={<KeyOutlined />} />
+        </Form.Item>
+        <Form.Item name="llm_endpoint" label="API 端点">
+          <Input placeholder="https://api.openai.com/v1" />
+        </Form.Item>
+        <Form.Item name="llm_model" label="模型名称">
+          <Input placeholder="gpt-4o-mini" />
+        </Form.Item>
+        <Form.Item>
+          <Button type="primary" htmlType="submit">{L.save}</Button>
+          <Button style={{ marginLeft: 8 }} onClick={handleTest} loading={testLoading}>{L.test}</Button>
+          <Button style={{ marginLeft: 8 }} onClick={() => { if (settings.llm_api_key) message.success("API 密钥已配置"); else message.info("未配置 API Key"); }}>{L.status}</Button>
+        </Form.Item>
+      </Form>
+    </div>
+  );
+}
+function Settings() {
   return (
     <div>
       <Typography.Title level={4}>系统设置</Typography.Title>
@@ -176,6 +247,7 @@ export default function Settings() {
           { key: "projects", label: "项目管理", children: <ProjectSettings /> },
           { key: "users", label: "用户管理", children: <UserSettings /> },
           { key: "rules", label: "预警规则", children: <AlertRuleSettings /> },
+          { key: "llm", label: "LLM 配置", children: <LLMSettings /> },
         ]} />
       </Card>
     </div>

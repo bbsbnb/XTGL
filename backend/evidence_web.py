@@ -155,6 +155,21 @@ def init_database():
         CREATE INDEX IF NOT EXISTS idx_attachments_eid ON attachments(evidence_id);
         CREATE INDEX IF NOT EXISTS idx_alerts_eid ON alerts(evidence_id);
         CREATE INDEX IF NOT EXISTS idx_logs_user ON activity_logs(user_id);
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '',
+    updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS evidence_links (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    evidence_id_1 INTEGER NOT NULL,
+    evidence_id_2 INTEGER NOT NULL,
+    relation_type TEXT DEFAULT '关联',
+    created_by INTEGER,
+    created_at TEXT,
+    FOREIGN KEY (evidence_id_1) REFERENCES evidence(id),
+    FOREIGN KEY (evidence_id_2) REFERENCES evidence(id)
+);
 CREATE TABLE IF NOT EXISTS settlement_packages (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -218,21 +233,15 @@ CREATE TABLE IF NOT EXISTS settlement_package_items (
     if conn.execute('SELECT COUNT(*) FROM projects').fetchone()[0]==0:
         conn.execute('INSERT INTO projects (name,full_name) VALUES (?,?)',('示例项目-2025-001','示例工程项目'))
     conn.commit(); conn.close()
-def gen_evidence_no(pid):
-    conn=get_db()
-    t=date.today().strftime('%Y%m%d')
-    pf=f'PJ{pid}-{t}-'
-    l=conn.execute('SELECT evidence_no FROM evidence WHERE evidence_no LIKE ? ORDER BY id DESC LIMIT 1',[f'{pf}%']).fetchone()
-    conn.close()
-    s=int(l['evidence_no'].split('-')[-1])+1 if l else 1
-    return f'{pf}{s:03d}'
+
 
 def log_act(uid,act,tt='',ti=None,det=''):
     try:
         conn=get_db()
         conn.execute('INSERT INTO activity_logs (user_id,action,target_type,target_id,detail) VALUES (?,?,?,?,?)',(uid,act,tt,ti,det))
         conn.commit(); conn.close()
-    except: pass
+    except:
+        pass
 
 def login_required(f):
     @wraps(f)
@@ -821,6 +830,173 @@ def api_global_search():
     pr=rows_to_list(conn.execute("SELECT id,name,full_name,status FROM projects WHERE name LIKE ? OR full_name LIKE ? OR code LIKE ? LIMIT 10",[like,like,like]).fetchall())
     conn.close()
     return jsonify({"evidence":ev,"projects":pr})
+
+def call_llm_api(messages, response_format=None):
+    conn2 = get_db()
+    key_row = conn2.execute("SELECT value FROM settings WHERE key='llm_api_key'").fetchone()
+    mdl_row = conn2.execute("SELECT value FROM settings WHERE key='llm_model'").fetchone()
+    ep_row = conn2.execute("SELECT value FROM settings WHERE key='llm_endpoint'").fetchone()
+    conn2.close()
+    api_key = key_row["value"] if key_row else ""
+    model = mdl_row["value"] if mdl_row else "gpt-4o-mini"
+    endpoint = ep_row["value"] if ep_row else "https://api.openai.com/v1"
+    if not api_key: return None
+    import urllib.request, json as jmod
+    url = endpoint.rstrip("/") + "/chat/completions"
+    body = jmod.dumps({"model": model, "messages": messages, "response_format": response_format or {"type": "json_object"}}).encode("utf-8")
+    req = urllib.request.Request(url, data=body,
+        headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}, method="POST")
+    try:
+        resp = urllib.request.urlopen(req, timeout=30)
+        return jmod.loads(resp.read())
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.route("/api/settings", methods=["GET"])
+@login_required
+def api_get_settings():
+    conn2 = get_db()
+    rows = rows_to_list(conn2.execute("SELECT key, value FROM settings").fetchall())
+    conn2.close()
+    result = {}
+    for r in rows: result[r["key"]] = r["value"]
+    return jsonify({"ok": True, "settings": result})
+
+@app.route("/api/settings", methods=["PUT"])
+@login_required
+def api_update_settings():
+    d = request.get_json() or {}
+    allowed = {"llm_api_key", "llm_model", "llm_endpoint"}
+    conn2 = get_db()
+    for k, v in d.items():
+        if k in allowed:
+            conn2.execute("INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES (?, ?, datetime('now','localtime'))", (k, str(v)))
+    conn2.commit(); conn2.close()
+    return jsonify({"ok": True})
+
+@app.route("/api/settings/test-llm", methods=["POST"])
+@login_required
+def api_test_llm():
+    d = request.get_json() or {}
+    api_key = d.get("api_key", "")
+    model = d.get("model", "gpt-4o-mini")
+    endpoint = d.get("endpoint", "https://api.openai.com/v1")
+    if not api_key:
+        return jsonify({"ok": False, "error": "请先输入 API Key"}), 400
+    if not endpoint:
+        return jsonify({"ok": False, "error": "请填写 API 端点"}), 400
+    import urllib.request, json as jmod
+    url = endpoint.rstrip("/") + "/chat/completions"
+    test_messages = [{"role": "user", "content": "你好，请回复OK"}]
+    body = jmod.dumps({"model": model, "messages": test_messages, "max_tokens": 10}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers={"Authorization": "Bearer " + api_key, "Content-Type": "application/json"}, method="POST")
+    try:
+        resp = urllib.request.urlopen(req, timeout=15)
+        result = jmod.loads(resp.read())
+        if "choices" in result and len(result["choices"]) > 0:
+            return jsonify({"ok": True, "message": "连接成功！模型响应正常"})
+        else:
+            return jsonify({"ok": False, "error": "响应格式异常"}), 500
+    except urllib.error.HTTPError as e:
+        err_body = e.read().decode("utf-8", errors="ignore")
+        return jsonify({"ok": False, "error": "HTTP " + str(e.code) + ": " + err_body}), 500
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.route("/api/llm/extract", methods=["POST"])
+@login_required
+def api_llm_extract_v2():
+    d = request.get_json() or {}
+    text = d.get("text", "")
+    if not text: return jsonify({"ok": False, "error": "请输入文本"}), 400
+    sys_p = "你是一个工程项目的证据信息提取助手。从以下工程证据描述中提取关键信息，返回JSON格式：{\"title\":\"标题\",\"event_time\":\"事件时间(YYYY-MM-DD)\",\"description\":\"事件描述\",\"solution\":\"处理方案\",\"quantity\":\"工程量(数字)\",\"unit_price\":\"单价(数字)\",\"total_amount\":\"总金额(数字)\",\"contract_no\":\"合同编号\"}。没有的字段填null。只返回JSON。"
+    result = call_llm_api([{"role": "system", "content": sys_p}, {"role": "user", "content": text}])
+    if result and "choices" in result:
+        try:
+            extracted = json.loads(result["choices"][0]["message"]["content"])
+            extracted["_source"] = "llm"
+            return jsonify({"ok": True, "extracted": extracted})
+        except: pass
+    tm = re.search(r"(\\d{4}[-/\u5e74]\\d{1,2}[-/\u6708]\\d{1,2}[\u65e5]?)", text)
+    am = re.search(r"(\\d+[.,]?\\d*)\\s*\u4e07?\u5143", text)
+    qm = re.search(r"(\\d+[.,]?\\d*)\\s*(m[23]?|\u4e2a|\u5904|\u9879|\u6761|\u4efd)", text)
+    ls = [l.strip() for l in text.split("\n") if l.strip()]
+    return jsonify({"ok": True, "extracted": {
+        "title": ls[0][:50] if ls else "",
+        "event_time": tm.group(1) if tm else "",
+        "total_amount": float(am.group(1).replace(",", "")) if am else 0,
+        "quantity": float(qm.group(1).replace(",", "")) if qm else 0,
+        "description": text[:500], "_source": "regex"
+    }})
+
+@app.route("/api/evidence/<int:eid>/links")
+@login_required
+def api_evidence_links(eid):
+    conn2 = get_db()
+    rows = rows_to_list(conn2.execute("SELECT el.*,e1.evidence_no as e1_no,e1.title as e1_title,e2.evidence_no as e2_no,e2.title as e2_title,p1.name as e1_project,p2.name as e2_project FROM evidence_links el LEFT JOIN evidence e1 ON el.evidence_id_1=e1.id LEFT JOIN evidence e2 ON el.evidence_id_2=e2.id LEFT JOIN projects p1 ON e1.project_id=p1.id LEFT JOIN projects p2 ON e2.project_id=p2.id WHERE el.evidence_id_1=? OR el.evidence_id_2=? ORDER BY el.created_at DESC",[eid,eid]).fetchall())
+    conn2.close()
+    result = []
+    for r in rows:
+        if r["evidence_id_1"] == eid:
+            result.append({"id":r["id"],"linked_id":r["evidence_id_2"],"evidence_no":r["e2_no"],"title":r["e2_title"],"project":r["e2_project"],"relation_type":r["relation_type"]})
+        else:
+            result.append({"id":r["id"],"linked_id":r["evidence_id_1"],"evidence_no":r["e1_no"],"title":r["e1_title"],"project":r["e1_project"],"relation_type":r["relation_type"]})
+    return jsonify({"data": result})
+
+@app.route("/api/evidence/<int:eid>/links", methods=["POST"])
+@login_required
+def api_evidence_add_link(eid):
+    d = request.get_json() or {}
+    tid = d.get("target_id")
+    if not tid: return jsonify({"ok":False,"error":"请选择关联证据"}),400
+    if int(tid) == eid: return jsonify({"ok":False,"error":"不能关联自身"}),400
+    conn2 = get_db()
+    ex = conn2.execute("SELECT id FROM evidence_links WHERE (evidence_id_1=? AND evidence_id_2=?) OR (evidence_id_1=? AND evidence_id_2=?)",[eid,tid,tid,eid]).fetchone()
+    if ex: conn2.close(); return jsonify({"ok":False,"error":"已存在关联"}),400
+    conn2.execute("INSERT INTO evidence_links (evidence_id_1,evidence_id_2,relation_type,created_by) VALUES (?,?,?,?)",(eid,tid,d.get("relation_type","关联"),g.user_id))
+    conn2.commit()
+    lid = conn2.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn2.close()
+    return jsonify({"ok":True,"link":{"id":lid}}),201
+
+@app.route("/api/evidence/<int:eid>/links/<int:lid>", methods=["DELETE"])
+@login_required
+def api_evidence_remove_link(eid, lid):
+    conn2 = get_db(); conn2.execute("DELETE FROM evidence_links WHERE id=? AND (evidence_id_1=? OR evidence_id_2=?)",[lid,eid,eid]); conn2.commit(); conn2.close()
+    return jsonify({"ok":True})
+
+@app.route("/api/evidence/<int:eid>/suggest-links")
+@login_required
+def api_suggest_links(eid):
+    conn2 = get_db()
+    ev = conn2.execute("SELECT * FROM evidence WHERE id=?",[eid]).fetchone()
+    if not ev: conn2.close(); return jsonify({"ok":False,"error":"证据不存在"}),404
+    candidates = rows_to_list(conn2.execute("SELECT e.id,e.evidence_no,e.title,e.event_time,e.description,e.contract_no,p.name as project_name,c.name as category_name FROM evidence e LEFT JOIN projects p ON e.project_id=p.id LEFT JOIN categories c ON e.category_id=c.id WHERE e.is_deleted=0 AND e.id!=? AND e.project_id=? AND e.id NOT IN (SELECT evidence_id_2 FROM evidence_links WHERE evidence_id_1=? UNION SELECT evidence_id_1 FROM evidence_links WHERE evidence_id_2=?) ORDER BY e.created_at DESC LIMIT 20",[eid,ev["project_id"],eid,eid]).fetchall())
+    conn2.close()
+    if not candidates: return jsonify({"data":[]})
+    sys_p = "你是一个工程证据关联分析助手。找出最相关的3-5条并说明关联原因。返回JSON格式：{\"suggestions\":[{\"id\":数字,\"reason\":\"原因\",\"relation_type\":\"关联类型\"}]}"
+    user_p = f"证据: ID={ev['id']}, 标题={ev['title']}, 描述={ev['description'][:200]}, 合同编号={ev['contract_no']}\n候选:\n"
+    for c in candidates: user_p += f"  ID={c['id']}, 标题={c['title']}, 描述={c['description'][:100]}, 分类={c['category_name']}\n"
+    result = call_llm_api([{"role":"system","content":sys_p},{"role":"user","content":user_p}])
+    if result and "choices" in result:
+        try:
+            parsed = json.loads(result["choices"][0]["message"]["content"])
+            sugs = parsed.get("suggestions",[])
+            mapped = []
+            for s in sugs:
+                c = next((x for x in candidates if x["id"]==s["id"]), None)
+                if c: c["reason"]=s.get("reason",""); c["relation_type"]=s.get("relation_type","关联"); mapped.append(c)
+            if mapped: return jsonify({"data":mapped,"source":"llm"})
+        except: pass
+    simple = []
+    for c in candidates[:10]:
+        keywords = (ev["title"]+" "+ev["description"])[:200]
+        score = sum(1 for kw in keywords.split() if kw and len(kw)>1 and kw in (c["title"] or "")+(c["description"] or ""))
+        if score>0 or c["contract_no"]==ev["contract_no"]:
+            c["reason"] = "相同合同号" if c["contract_no"]==ev["contract_no"] else f"匹配关键词{score}个"
+            c["relation_type"] = "关联"; simple.append(c)
+    return jsonify({"data":simple,"source":"keyword"})
 
 if __name__=='__main__':
     init_database()
